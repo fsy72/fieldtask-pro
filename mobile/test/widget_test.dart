@@ -5,26 +5,34 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fieldtask_pro/features/auth/domain/entities/app_user.dart';
+import 'package:fieldtask_pro/features/auth/presentation/auth_providers.dart';
 import 'package:fieldtask_pro/main.dart';
 
+class _UnauthenticatedAuthController extends AuthController {
+  @override
+  Future<AppUser?> build() async => null;
+}
+
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('affiche l’écran de connexion sans session', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(
+            _UnauthenticatedAuthController.new,
+          ),
+        ],
+        child: const FieldTaskApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('FieldTask Pro'), findsOneWidget);
+    expect(find.text('Se connecter'), findsOneWidget);
+    expect(find.text('Adresse e-mail'), findsOneWidget);
   });
 }
