@@ -1,58 +1,187 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+﻿# FieldTask Pro - Backend Laravel
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API REST du projet mobile FieldTask Pro. Elle gère la connexion des techniciens, leurs interventions, la synchronisation des modifications et les pièces jointes (photos et signatures).
 
-## About Laravel
+## Prérequis
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.3 ou plus récent
+- Composer
+- MySQL démarré en local, ou une base configurée dans `.env`
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Installation locale
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Depuis le dossier `backend/` :
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```powershell
+composer install
+Copy-Item .env.example .env
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+`.env.example` est le modèle versionné. Copiez-le en `.env`, puis modifiez **`.env` uniquement** avec les paramètres de votre machine. Ne modifiez pas `.env.example` pour y mettre vos identifiants personnels. Si vous avez déjà un `.env`, conservez-le et adaptez ses paramètres au lieu de l'écraser.
 
-## Contributing
+Vérifiez au minimum les valeurs locales de l'application et de MySQL dans `.env` :
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```dotenv
+APP_NAME="FieldTask Pro"
+APP_ENV=local
+APP_DEBUG=true
+APP_URL=http://127.0.0.1:8000
 
-## Code of Conduct
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=fieldtask_pro
+DB_USERNAME=root
+DB_PASSWORD=mot_de_passe_mysql_local
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Remplacez `mot_de_passe_mysql_local` par le mot de passe réel de votre MySQL local. Créez la base de données correspondante et démarrez MySQL avant la migration. Ensuite, générez la clé Laravel (à faire une fois par installation locale) :
 
-## Security Vulnerabilities
+```powershell
+php artisan key:generate
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Initialisez ensuite le schéma et les données de démonstration, puis démarrez l'API :
 
-## License
+```powershell
+php artisan migrate --seed
+php artisan serve
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Le serveur écoute par défaut sur `http://127.0.0.1:8000`. Vérifiez les routes avec :
+
+```powershell
+php artisan route:list --path=api
+```
+
+Ne partagez pas `.env` et ne commitez jamais ses secrets. Chaque membre configure sa propre base locale.
+
+### URL depuis Flutter
+
+- Navigateur ou client HTTP sur le même ordinateur : `http://127.0.0.1:8000`
+- Émulateur Android : `http://10.0.2.2:8000`
+- Téléphone physique : utilisez l'adresse IP locale de l'ordinateur et assurez-vous qu'ils sont sur le même réseau.
+
+## Données de démonstration
+
+`php artisan migrate --seed` crée un compte de test et deux interventions :
+
+- E-mail : `test@example.com`
+- Mot de passe : `password`
+
+Ce compte est réservé au développement local. Ne réutilisez pas ces identifiants en production.
+
+## Authentification
+
+La connexion renvoie un jeton Sanctum. Envoyez ce jeton dans chaque appel protégé :
+
+```http
+Authorization: Bearer <access_token>
+Accept: application/json
+```
+
+Dans Thunder Client, utilisez **Auth > Bearer** et collez le jeton obtenu à la connexion. Il n'est pas nécessaire de créer un environnement.
+
+## Routes API
+
+Les routes sont préfixées par `/api`. Le segment `v1` a été retiré.
+
+| Méthode | Chemin | Authentification | Rôle |
+|---|---|---|---|
+| `POST` | `/api/auth/login` | Non | Connexion et émission d'un jeton |
+| `GET` | `/api/auth/me` | Bearer | Profil du technicien connecté |
+| `DELETE` | `/api/auth/logout` | Bearer | Révoquer le jeton courant |
+| `GET` | `/api/interventions` | Bearer | Lister ses interventions |
+| `POST` | `/api/interventions` | Bearer | Créer une intervention |
+| `GET` | `/api/interventions/{id}` | Bearer | Consulter une intervention |
+| `PUT` ou `PATCH` | `/api/interventions/{id}` | Bearer | Modifier une intervention |
+| `POST` | `/api/interventions/{id}/attachments` | Bearer | Envoyer une photo ou une signature |
+| `GET` | `/api/interventions/{id}/attachments/{attachment}` | Bearer | Télécharger une pièce jointe |
+
+### Connexion
+
+`POST http://127.0.0.1:8000/api/auth/login` avec un corps JSON :
+
+```json
+{
+  "email": "test@example.com",
+  "password": "password",
+  "device_name": "Thunder Client"
+}
+```
+
+La réponse contient `access_token`. Copiez sa valeur dans **Auth > Bearer** pour les autres requêtes.
+
+### Liste, recherche et tri
+
+Exemple :
+
+```http
+GET /api/interventions?status=pending&search=Diamniadio&priority=desc&per_page=20
+```
+
+Paramètres facultatifs :
+
+- `status` : `pending`, `in_progress` ou `completed`
+- `search` : recherche dans le client, l'adresse, la description et l'équipement
+- `priority` : `asc` ou `desc` (par défaut `desc`)
+- `per_page` : de 1 à 100 (par défaut 20)
+
+La liste est paginée et limitée aux interventions du technicien authentifié.
+
+### Créer une intervention
+
+`POST /api/interventions` accepte un corps JSON. `client_uuid` est facultatif; l'application mobile peut le générer avant une création hors ligne. Répéter la création avec le même identifiant pour le même technicien évite de créer un doublon.
+
+```json
+{
+  "client_uuid": "10000000-0000-4000-8000-000000000010",
+  "client": "Atelier de Dakar",
+  "address": "Dakar, Sénégal",
+  "description": "Contrôle de l'installation électrique.",
+  "equipment": "Armoire électrique A-12",
+  "status": "pending",
+  "priority": 2,
+  "latitude": 14.7167,
+  "longitude": -17.4677,
+  "scheduled_at": "2026-10-12T09:00:00Z",
+  "notes": "Appeler le client avant l'arrivée."
+}
+```
+
+Champs requis : `client`, `address`, `description`, `equipment`. Les statuts valides sont `pending`, `in_progress` et `completed`; la priorité va de 1 à 3.
+
+### Modifier une intervention et synchroniser
+
+Chaque `PUT` ou `PATCH` doit inclure le `sync_version` reçu avec l'intervention. Après une mise à jour, le serveur incrémente cette version. Si la version envoyée est périmée, l'API répond `409 Conflict` avec l'état serveur courant.
+
+```json
+{
+  "sync_version": 1,
+  "status": "in_progress",
+  "notes": "Diagnostic commencé."
+}
+```
+
+La file d'attente hors ligne et les nouvelles tentatives réseau sont gérées par l'application mobile; l'API fournit l'idempotence de création et la détection des conflits de mise à jour.
+
+### Envoyer une photo ou une signature
+
+`POST /api/interventions/{id}/attachments` utilise `multipart/form-data` :
+
+- `type` : `photo` ou `signature`
+- `file` : image JPG, PNG ou WebP, maximum 10 Mo
+- `caption` : texte facultatif, maximum 255 caractères
+
+Les fichiers sont stockés sur le disque privé local. L'API renvoie une URL de téléchargement; le jeton Bearer reste requis pour la récupérer.
+
+## Structure du backend
+
+- `routes/api.php` : routes de l'API
+- `app/Http/Controllers/` : contrôleurs HTTP
+- `app/Http/Requests/` : validation des entrées
+- `app/Http/Resources/` : format des réponses JSON
+- `app/Models/` : modèles et relations Eloquent
+- `database/migrations/` : schéma de la base
+- `database/factories/` et `database/seeders/` : données de développement
+
