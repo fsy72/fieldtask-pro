@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/storage/token_storage.dart';
+import '../../domain/entities/intervention.dart';
 import '../models/intervention_model.dart';
 
 class InterventionRemoteDataSource {
@@ -41,5 +42,29 @@ class InterventionRemoteDataSource {
     } while (page <= lastPage);
 
     return interventions;
+  }
+
+  Future<InterventionModel> updateStatus({
+    required Intervention intervention,
+    required String status,
+  }) async {
+    final token = await _tokenStorage.read();
+    if (token == null || token.isEmpty) {
+      throw StateError('Aucun jeton de session disponible.');
+    }
+
+    final response = await _dio.patch<Map<String, dynamic>>(
+      'interventions/${intervention.id}',
+      data: {
+        'status': status,
+        'sync_version': intervention.syncVersion,
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final body = response.data!;
+    final data = body['data'] is Map<String, dynamic>
+        ? body['data'] as Map<String, dynamic>
+        : body;
+    return InterventionModel.fromJson(data);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../domain/entities/intervention_load_result.dart';
+import '../../domain/entities/intervention.dart';
 import '../../domain/repositories/intervention_repository.dart';
 import '../datasources/intervention_local_data_source.dart';
 import '../datasources/intervention_remote_data_source.dart';
@@ -36,5 +37,22 @@ class InterventionRepositoryImpl implements InterventionRepository {
         cacheUpdatedAt: cache.updatedAt,
       );
     }
+  }
+
+  @override
+  Future<Intervention> updateStatus({
+    required int technicianId,
+    required Intervention intervention,
+    required String status,
+  }) async {
+    final updated = await _remote.updateStatus(
+      intervention: intervention,
+      status: status,
+    );
+    await _local.saveForTechnician(
+      technicianId: technicianId,
+      intervention: updated,
+    );
+    return updated;
   }
 }

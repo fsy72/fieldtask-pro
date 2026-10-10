@@ -39,6 +39,18 @@ class InterventionLocalDataSource {
     });
   }
 
+  Future<void> saveForTechnician({
+    required int technicianId,
+    required InterventionModel intervention,
+  }) async {
+    final db = await _appDatabase.database;
+    await db.insert(
+      'interventions',
+      intervention.toDatabase(technicianId: technicianId),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   Future<({List<InterventionModel> interventions, DateTime? updatedAt})>
       readForTechnician(int technicianId) async {
     final db = await _appDatabase.database;

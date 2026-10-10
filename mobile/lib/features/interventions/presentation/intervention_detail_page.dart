@@ -1,8 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/entities/intervention.dart';
+import 'intervention_providers.dart';
 
-class InterventionDetailPage extends StatelessWidget {
+class InterventionDetailPage extends ConsumerStatefulWidget {
   const InterventionDetailPage({
     required this.intervention,
     super.key,
@@ -11,8 +14,71 @@ class InterventionDetailPage extends StatelessWidget {
   final Intervention intervention;
 
   @override
+  ConsumerState<InterventionDetailPage> createState() =>
+      _InterventionDetailPageState();
+}
+
+class _InterventionDetailPageState
+    extends ConsumerState<InterventionDetailPage> {
+  late Intervention _intervention;
+  bool _savingStatus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _intervention = widget.intervention;
+  }
+
+  Future<void> _advanceStatus() async {
+    final nextStatus = switch (_intervention.status) {
+      'pending' => 'in_progress',
+      'in_progress' => 'completed',
+      _ => null,
+    };
+    if (nextStatus == null) return;
+
+    setState(() => _savingStatus = true);
+    try {
+      final updated = await ref
+          .read(interventionsControllerProvider.notifier)
+          .updateStatus(intervention: _intervention, status: nextStatus);
+      if (!mounted) return;
+      setState(() => _intervention = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Statut mis à jour : ${_statusInfo(updated.status).$1}.')),
+      );
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final payload = error.response?.data;
+      final serverMessage = payload is Map<String, dynamic>
+          ? payload['message']?.toString()
+          : null;
+      final message = error.response?.statusCode == 409
+          ? serverMessage ?? 'Cette intervention a changé sur le serveur. Actualisez la liste.'
+          : error.response?.statusCode == 401
+              ? 'Votre session a expiré. Reconnectez-vous.'
+              : serverMessage ?? 'Impossible de mettre à jour le statut.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _savingStatus = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final status = _statusInfo(intervention.status);
+    final status = _statusInfo(_intervention.status);
+    final nextStatus = switch (_intervention.status) {
+      'pending' => ('in_progress', 'Démarrer l’intervention', Icons.play_arrow),
+      'in_progress' => ('completed', 'Terminer l’intervention', Icons.check),
+      _ => null,
+    };
     return Scaffold(
       appBar: AppBar(title: const Text('Détail de l’intervention')),
       body: ListView(
@@ -29,7 +95,7 @@ class InterventionDetailPage extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          intervention.client,
+                          _intervention.client,
                           style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
@@ -41,47 +107,63 @@ class InterventionDetailPage extends StatelessWidget {
                   _DetailRow(
                     icon: Icons.location_on_outlined,
                     label: 'Adresse',
-                    value: intervention.address,
+                    value: _intervention.address,
                   ),
                   _DetailRow(
                     icon: Icons.build_outlined,
                     label: 'Équipement',
-                    value: intervention.equipment,
+                    value: _intervention.equipment,
                   ),
                   _DetailRow(
                     icon: Icons.flag_outlined,
                     label: 'Priorité',
-                    value: '${intervention.priority}/3',
+                    value: '${_intervention.priority}/3',
                   ),
-                  if (intervention.scheduledAt != null)
+                  if (_intervention.scheduledAt != null)
                     _DetailRow(
                       icon: Icons.schedule_outlined,
                       label: 'Date prévue',
-                      value: _formatDate(intervention.scheduledAt!),
+                      value: _formatDate(_intervention.scheduledAt!),
                     ),
-                  if (intervention.latitude != null &&
-                      intervention.longitude != null)
+                  if (_intervention.latitude != null &&
+                      _intervention.longitude != null)
                     _DetailRow(
                       icon: Icons.my_location_outlined,
                       label: 'Coordonnées',
                       value:
-                          '${intervention.latitude}, ${intervention.longitude}',
+                          '${_intervention.latitude}, ${_intervention.longitude}',
                     ),
                 ],
               ),
             ),
           ),
+          if (nextStatus != null) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _savingStatus ? null : _advanceStatus,
+              icon: _savingStatus
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(nextStatus.$3),
+              label: Text(_savingStatus ? 'Mise à jour…' : nextStatus.$2),
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            const Text('Cette intervention est terminée.'),
+          ],
           const SizedBox(height: 16),
           _TextSection(
             title: 'Description',
-            text: intervention.description,
+            text: _intervention.description,
             icon: Icons.subject_outlined,
           ),
-          if (_hasText(intervention.notes)) ...[
+          if (_hasText(_intervention.notes)) ...[
             const SizedBox(height: 12),
             _TextSection(
               title: 'Notes',
-              text: intervention.notes!.trim(),
+              text: _intervention.notes!.trim(),
               icon: Icons.notes_outlined,
             ),
           ],
