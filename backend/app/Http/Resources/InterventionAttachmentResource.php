@@ -20,7 +20,7 @@ class InterventionAttachmentResource extends JsonResource
             'caption' => $this->caption,
             'mime_type' => $this->mime_type,
             'size_bytes' => $this->size_bytes,
-            'download_url' => route('api.v1.interventions.attachments.show', [
+            'download_url' => route('api.interventions.attachments.show', [
                 'intervention' => $this->intervention_id,
                 'attachment' => $this->id,
             ]),

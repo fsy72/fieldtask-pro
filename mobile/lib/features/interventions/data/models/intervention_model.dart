@@ -72,6 +72,30 @@ class InterventionModel extends Intervention {
         'updated_at': updatedAt?.toIso8601String(),
       };
 
+  InterventionModel copyWith({
+    String? status,
+    String? notes,
+    bool clearNotes = false,
+    int? syncVersion,
+    DateTime? updatedAt,
+  }) =>
+      InterventionModel(
+        id: id,
+        clientUuid: clientUuid,
+        client: client,
+        address: address,
+        description: description,
+        equipment: equipment,
+        status: status ?? this.status,
+        priority: priority,
+        latitude: latitude,
+        longitude: longitude,
+        scheduledAt: scheduledAt,
+        notes: clearNotes ? null : notes ?? this.notes,
+        syncVersion: syncVersion ?? this.syncVersion,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+
   static int? _int(Object? value) => value is num
       ? value.toInt()
       : value == null

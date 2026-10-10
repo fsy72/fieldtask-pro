@@ -21,7 +21,7 @@ class InterventionDetailPage extends ConsumerStatefulWidget {
 class _InterventionDetailPageState
     extends ConsumerState<InterventionDetailPage> {
   late Intervention _intervention;
-  bool _savingStatus = false;
+  bool _savingChanges = false;
 
   @override
   void initState() {
@@ -37,15 +37,21 @@ class _InterventionDetailPageState
     };
     if (nextStatus == null) return;
 
-    setState(() => _savingStatus = true);
+    setState(() => _savingChanges = true);
     try {
-      final updated = await ref
+      final result = await ref
           .read(interventionsControllerProvider.notifier)
           .updateStatus(intervention: _intervention, status: nextStatus);
       if (!mounted) return;
-      setState(() => _intervention = updated);
+      setState(() => _intervention = result.intervention);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Statut mis à jour : ${_statusInfo(updated.status).$1}.')),
+        SnackBar(
+          content: Text(
+            result.isQueued
+                ? 'Statut enregistré hors ligne. Il sera synchronisé au retour du réseau.'
+                : 'Statut mis à jour : ${_statusInfo(result.intervention.status).$1}.',
+          ),
+        ),
       );
     } on DioException catch (error) {
       if (!mounted) return;
@@ -67,7 +73,50 @@ class _InterventionDetailPageState
         SnackBar(content: Text('Erreur : $error')),
       );
     } finally {
-      if (mounted) setState(() => _savingStatus = false);
+      if (mounted) setState(() => _savingChanges = false);
+    }
+  }
+
+  Future<void> _editNotes() async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _NotesEditorDialog(initialNotes: _intervention.notes),
+    );
+    if (value == null || !mounted) return;
+
+    final notes = value.trim().isEmpty ? null : value.trim();
+    setState(() => _savingChanges = true);
+    try {
+      final result = await ref
+          .read(interventionsControllerProvider.notifier)
+          .updateNotes(intervention: _intervention, notes: notes);
+      if (!mounted) return;
+      setState(() => _intervention = result.intervention);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.isQueued
+                ? 'Notes enregistrées hors ligne. Elles seront synchronisées au retour du réseau.'
+                : 'Notes enregistrées.',
+          ),
+        ),
+      );
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final payload = error.response?.data;
+      final message = payload is Map<String, dynamic>
+          ? payload['message']?.toString()
+          : null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message ?? 'Impossible d’enregistrer les notes.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _savingChanges = false);
     }
   }
 
@@ -140,14 +189,14 @@ class _InterventionDetailPageState
           if (nextStatus != null) ...[
             const SizedBox(height: 12),
             FilledButton.icon(
-              onPressed: _savingStatus ? null : _advanceStatus,
-              icon: _savingStatus
+              onPressed: _savingChanges ? null : _advanceStatus,
+              icon: _savingChanges
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Icon(nextStatus.$3),
-              label: Text(_savingStatus ? 'Mise à jour…' : nextStatus.$2),
+              label: Text(_savingChanges ? 'Mise à jour…' : nextStatus.$2),
             ),
           ] else ...[
             const SizedBox(height: 12),
@@ -159,18 +208,99 @@ class _InterventionDetailPageState
             text: _intervention.description,
             icon: Icons.subject_outlined,
           ),
-          if (_hasText(_intervention.notes)) ...[
-            const SizedBox(height: 12),
-            _TextSection(
-              title: 'Notes',
-              text: _intervention.notes!.trim(),
-              icon: Icons.notes_outlined,
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.notes_outlined,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Notes',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Modifier les notes',
+                        onPressed: _savingChanges ? null : _editNotes,
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    _hasText(_intervention.notes)
+                        ? _intervention.notes!.trim()
+                        : 'Aucune note. Touchez le crayon pour en ajouter.',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
+}
+
+class _NotesEditorDialog extends StatefulWidget {
+  const _NotesEditorDialog({required this.initialNotes});
+
+  final String? initialNotes;
+
+  @override
+  State<_NotesEditorDialog> createState() => _NotesEditorDialogState();
+}
+
+class _NotesEditorDialogState extends State<_NotesEditorDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialNotes ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Notes de l’intervention'),
+        content: TextField(
+          controller: _controller,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 7,
+          maxLength: 5000,
+          decoration: const InputDecoration(
+            hintText: 'Ajouter des observations…',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(_controller.text),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      );
 }
 
 class _DetailRow extends StatelessWidget {

@@ -44,27 +44,32 @@ class InterventionRemoteDataSource {
     return interventions;
   }
 
-  Future<InterventionModel> updateStatus({
+  Future<InterventionModel> updateIntervention({
     required Intervention intervention,
     required String status,
+    String? notes,
+    bool includeNotes = false,
   }) async {
     final token = await _tokenStorage.read();
     if (token == null || token.isEmpty) {
       throw StateError('Aucun jeton de session disponible.');
     }
 
+    final payload = <String, dynamic>{
+      'status': status,
+      'sync_version': intervention.syncVersion,
+    };
+    if (includeNotes) payload['notes'] = notes;
+
     final response = await _dio.patch<Map<String, dynamic>>(
       'interventions/${intervention.id}',
-      data: {
-        'status': status,
-        'sync_version': intervention.syncVersion,
-      },
+      data: payload,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     final body = response.data!;
-    final data = body['data'] is Map<String, dynamic>
+    final responseData = body['data'] is Map<String, dynamic>
         ? body['data'] as Map<String, dynamic>
         : body;
-    return InterventionModel.fromJson(data);
+    return InterventionModel.fromJson(responseData);
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -46,8 +48,8 @@ class _InterventionsPageState extends ConsumerState<InterventionsPage> {
             (result) => result != ConnectivityResult.none,
           ) ??
           false;
-      if (previous != null && !wasOnline && isNowOnline) {
-        ref.read(interventionsControllerProvider.notifier).refresh();
+      if (isNowOnline && (previous == null || !wasOnline)) {
+        unawaited(_synchronizePendingChanges());
       }
     });
 
@@ -145,6 +147,29 @@ class _InterventionsPageState extends ConsumerState<InterventionsPage> {
         ),
       ],
     );
+  }
+
+  Future<void> _synchronizePendingChanges() async {
+    try {
+      final conflicts = await ref
+          .read(interventionsControllerProvider.notifier)
+          .syncPendingChanges();
+      if (mounted && conflicts > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$conflicts mise(s) à jour en conflit. Rechargez ces interventions avant de continuer.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Synchronisation impossible : $error')),
+        );
+      }
+    }
   }
 
   Widget _filterChip(String label, String? status) => Padding(

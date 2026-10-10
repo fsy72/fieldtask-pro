@@ -1,4 +1,5 @@
 import '../entities/intervention.dart';
+import '../entities/intervention_change_result.dart';
 import '../repositories/intervention_repository.dart';
 
 class UpdateInterventionStatus {
@@ -6,7 +7,7 @@ class UpdateInterventionStatus {
 
   final InterventionRepository _repository;
 
-  Future<Intervention> call({
+  Future<InterventionChangeResult> call({
     required int technicianId,
     required Intervention intervention,
     required String status,

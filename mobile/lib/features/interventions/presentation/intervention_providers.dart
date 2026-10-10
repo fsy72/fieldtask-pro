@@ -8,8 +8,10 @@ import '../data/datasources/intervention_remote_data_source.dart';
 import '../data/repositories/intervention_repository_impl.dart';
 import '../domain/entities/intervention.dart';
 import '../domain/entities/intervention_load_result.dart';
+import '../domain/entities/intervention_change_result.dart';
 import '../domain/repositories/intervention_repository.dart';
 import '../domain/usecases/get_assigned_interventions.dart';
+import '../domain/usecases/update_intervention_notes.dart';
 import '../domain/usecases/update_intervention_status.dart';
 
 final connectivityStatusProvider =
@@ -34,6 +36,10 @@ final getAssignedInterventionsProvider = Provider<GetAssignedInterventions>(
 
 final updateInterventionStatusProvider = Provider<UpdateInterventionStatus>(
   (ref) => UpdateInterventionStatus(ref.watch(interventionRepositoryProvider)),
+);
+
+final updateInterventionNotesProvider = Provider<UpdateInterventionNotes>(
+  (ref) => UpdateInterventionNotes(ref.watch(interventionRepositoryProvider)),
 );
 
 final interventionsControllerProvider =
@@ -62,28 +68,52 @@ class InterventionsController extends AsyncNotifier<InterventionLoadResult> {
     state = await AsyncValue.guard(_load);
   }
 
-  Future<Intervention> updateStatus({
+  Future<InterventionChangeResult> updateStatus({
     required Intervention intervention,
     required String status,
   }) async {
-    final updated = await ref.read(updateInterventionStatusProvider).call(
+    final result = await ref.read(updateInterventionStatusProvider).call(
           technicianId: _technicianId,
           intervention: intervention,
           status: status,
         );
+    _replaceInState(result.intervention, isFromCache: result.isQueued);
+    return result;
+  }
+
+  Future<InterventionChangeResult> updateNotes({
+    required Intervention intervention,
+    required String? notes,
+  }) async {
+    final result = await ref.read(updateInterventionNotesProvider).call(
+          technicianId: _technicianId,
+          intervention: intervention,
+          notes: notes,
+        );
+    _replaceInState(result.intervention, isFromCache: result.isQueued);
+    return result;
+  }
+
+  void _replaceInState(Intervention updated, {required bool isFromCache}) {
     final current = state.asData?.value;
-    if (current != null) {
-      state = AsyncData(
-        InterventionLoadResult(
-          interventions: [
-            for (final item in current.interventions)
-              if (item.id == updated.id) updated else item,
-          ],
-          isFromCache: false,
-          cacheUpdatedAt: DateTime.now(),
-        ),
-      );
-    }
-    return updated;
+    if (current == null) return;
+    state = AsyncData(
+      InterventionLoadResult(
+        interventions: [
+          for (final item in current.interventions)
+            if (item.id == updated.id) updated else item,
+        ],
+        isFromCache: isFromCache,
+        cacheUpdatedAt: isFromCache ? current.cacheUpdatedAt : DateTime.now(),
+      ),
+    );
+  }
+
+  Future<int> syncPendingChanges() async {
+    final conflicts = await ref
+        .read(interventionRepositoryProvider)
+        .syncPendingChanges(technicianId: _technicianId);
+    await refresh();
+    return conflicts;
   }
 }

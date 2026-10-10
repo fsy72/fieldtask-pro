@@ -10,7 +10,7 @@ class AppDatabase {
     final databasesPath = await getDatabasesPath();
     return openDatabase(
       path.join(databasesPath, 'fieldtask_pro.db'),
-      version: 3,
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE interventions (
@@ -41,6 +41,7 @@ class AppDatabase {
           'CREATE INDEX interventions_technician_status '
           'ON interventions (technician_id, status)',
         );
+        await _createStatusUpdatesTable(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 3) {
@@ -82,7 +83,39 @@ class AppDatabase {
             'ON interventions (technician_id, status)',
           );
         }
+        if (oldVersion < 4) await _createStatusUpdatesTable(db);
+        if (oldVersion < 5) {
+          final columns = await db.rawQuery(
+            'PRAGMA table_info(intervention_status_updates)',
+          );
+          final existingColumns =
+              columns.map((column) => column['name'] as String).toSet();
+          if (!existingColumns.contains('notes')) {
+            await db.execute(
+              'ALTER TABLE intervention_status_updates ADD COLUMN notes TEXT',
+            );
+          }
+          if (!existingColumns.contains('includes_notes')) {
+            await db.execute(
+              'ALTER TABLE intervention_status_updates '
+              'ADD COLUMN includes_notes INTEGER NOT NULL DEFAULT 0',
+            );
+          }
+        }
       },
     );
   }
+
+  Future<void> _createStatusUpdatesTable(DatabaseExecutor db) => db.execute('''
+    CREATE TABLE IF NOT EXISTS intervention_status_updates (
+      intervention_id TEXT PRIMARY KEY,
+      technician_id INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      sync_version INTEGER NOT NULL,
+      is_conflict INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      includes_notes INTEGER NOT NULL DEFAULT 0,
+      queued_at TEXT NOT NULL
+    )
+  ''');
 }
