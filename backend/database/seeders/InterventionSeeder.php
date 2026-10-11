@@ -23,6 +23,9 @@ class InterventionSeeder extends Seeder
                 'equipment' => 'Groupe électrogène GE-204',
                 'status' => 'pending',
                 'priority' => 3,
+                // Coordonnées de démonstration de la plateforme industrielle.
+                'latitude' => 14.72722,
+                'longitude' => -17.22396,
             ],
         );
 
@@ -35,6 +38,9 @@ class InterventionSeeder extends Seeder
                 'equipment' => 'Baie radio BTS-17',
                 'status' => 'in_progress',
                 'priority' => 2,
+                // Position approximative à Rufisque pour la démonstration.
+                'latitude' => 14.72372,
+                'longitude' => -17.28187,
             ],
         );
     }

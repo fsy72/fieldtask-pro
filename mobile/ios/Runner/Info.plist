@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>FieldTask Pro utilise votre position pour vous situer par rapport au lieu de l’intervention.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>FieldTask Pro utilise la caméra pour joindre des preuves aux interventions.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

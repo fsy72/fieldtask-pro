@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../domain/entities/intervention.dart';
 import '../domain/entities/intervention_photo.dart';
+import 'intervention_location_panel.dart';
 import 'intervention_providers.dart';
 
 class InterventionDetailPage extends ConsumerStatefulWidget {
@@ -327,18 +328,29 @@ class _InterventionDetailPageState
                       label: 'Date prévue',
                       value: _formatDate(_intervention.scheduledAt!),
                     ),
-                  if (_intervention.latitude != null &&
-                      _intervention.longitude != null)
-                    _DetailRow(
-                      icon: Icons.my_location_outlined,
-                      label: 'Coordonnées',
-                      value:
-                          '${_intervention.latitude}, ${_intervention.longitude}',
-                    ),
                 ],
               ),
             ),
           ),
+          if (_intervention.latitude != null &&
+              _intervention.longitude != null) ...[
+            const SizedBox(height: 12),
+            InterventionLocationPanel(
+              latitude: _intervention.latitude!,
+              longitude: _intervention.longitude!,
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            const Card(
+              child: ListTile(
+                leading: Icon(Icons.location_off_outlined),
+                title: Text('Carte indisponible'),
+                subtitle: Text(
+                  'Les coordonnées GPS de cette intervention ne sont pas renseignées.',
+                ),
+              ),
+            ),
+          ],
           if (nextStatus != null) ...[
             const SizedBox(height: 12),
             FilledButton.icon(
