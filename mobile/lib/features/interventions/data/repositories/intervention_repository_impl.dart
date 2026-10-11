@@ -1,8 +1,13 @@
+import 'dart:io';
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 
 import '../../domain/entities/intervention_load_result.dart';
 import '../../domain/entities/intervention.dart';
 import '../../domain/entities/intervention_change_result.dart';
+import '../../domain/entities/photo_upload_result.dart';
+import '../../domain/entities/intervention_photo.dart';
 import '../../domain/repositories/intervention_repository.dart';
 import '../datasources/intervention_local_data_source.dart';
 import '../datasources/intervention_remote_data_source.dart';
@@ -143,6 +148,72 @@ class InterventionRepositoryImpl implements InterventionRepository {
   }
 
   @override
+  Future<PhotoUploadResult> uploadPhoto({
+    required int technicianId,
+    required String interventionId,
+    required String filePath,
+    String? caption,
+  }) async {
+    final clientUuid = _newUuid();
+    final savedPath = await _local.queuePhoto(
+      technicianId: technicianId,
+      interventionId: interventionId,
+      clientUuid: clientUuid,
+      sourcePath: filePath,
+      caption: caption,
+    );
+    try {
+      await _remote.uploadPhoto(
+        interventionId: interventionId,
+        clientUuid: clientUuid,
+        filePath: savedPath,
+        caption: caption,
+      );
+      await _local.removePendingPhoto(clientUuid);
+      return const PhotoUploadResult(isQueued: false);
+    } on DioException catch (error) {
+      if (_isNetworkFailure(error)) {
+        return const PhotoUploadResult(isQueued: true);
+      }
+      await _local.removePendingPhoto(clientUuid);
+      rethrow;
+    } catch (_) {
+      await _local.removePendingPhoto(clientUuid);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<InterventionPhoto>> getPhotos({
+    required int technicianId,
+    required String interventionId,
+  }) async {
+    final photos = <InterventionPhoto>[];
+    try {
+      photos.addAll(await _remote.getPhotos(interventionId: interventionId));
+    } on DioException catch (error) {
+      if (!_isNetworkFailure(error)) rethrow;
+    }
+    final pending = await _local.pendingPhotos(technicianId);
+    for (final item in pending.where(
+      (photo) => photo['intervention_id'] == interventionId,
+    )) {
+      final filePath = item['file_path']! as String;
+      try {
+        final bytes = await File(filePath).readAsBytes();
+        photos.add(InterventionPhoto(
+          id: item['client_uuid']! as String,
+          bytes: bytes,
+          caption: item['caption'] as String?,
+        ));
+      } on FileSystemException {
+        // A missing queued file will be handled by the sync queue.
+      }
+    }
+    return photos;
+  }
+
+  @override
   Future<int> syncPendingChanges({required int technicianId}) async {
     final pending = await _local.pendingChanges(technicianId);
     if (pending.isEmpty) return 0;
@@ -201,7 +272,34 @@ class InterventionRepositoryImpl implements InterventionRepository {
         rethrow;
       }
     }
+
+    final pendingPhotos = await _local.pendingPhotos(technicianId);
+    for (final photo in pendingPhotos) {
+      final clientUuid = photo['client_uuid']! as String;
+      try {
+        await _remote.uploadPhoto(
+          interventionId: photo['intervention_id']! as String,
+          clientUuid: clientUuid,
+          filePath: photo['file_path']! as String,
+          caption: photo['caption'] as String?,
+        );
+        await _local.removePendingPhoto(clientUuid);
+      } on DioException catch (error) {
+        if (_isNetworkFailure(error)) break;
+        rethrow;
+      }
+    }
     return conflicts;
+  }
+
+  String _newUuid() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   InterventionModel? _conflictingIntervention(Object? response) {

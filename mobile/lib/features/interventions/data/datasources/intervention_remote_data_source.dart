@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
+import 'package:path/path.dart' as path;
 
 import '../../../../core/storage/token_storage.dart';
 import '../../domain/entities/intervention.dart';
+import '../../domain/entities/intervention_photo.dart';
 import '../models/intervention_model.dart';
 
 class InterventionRemoteDataSource {
@@ -71,5 +75,70 @@ class InterventionRemoteDataSource {
         ? body['data'] as Map<String, dynamic>
         : body;
     return InterventionModel.fromJson(responseData);
+  }
+
+  Future<void> uploadPhoto({
+    required String interventionId,
+    required String clientUuid,
+    required String filePath,
+    String? caption,
+  }) async {
+    final token = await _tokenStorage.read();
+    if (token == null || token.isEmpty) {
+      throw StateError('Aucun jeton de session disponible.');
+    }
+
+    final form = FormData.fromMap({
+      'client_uuid': clientUuid,
+      'type': 'photo',
+      'file': await MultipartFile.fromFile(
+        filePath,
+        filename: path.basename(filePath),
+      ),
+      if (caption != null && caption.trim().isNotEmpty)
+        'caption': caption.trim(),
+    });
+    await _dio.post<void>(
+      'interventions/$interventionId/attachments',
+      data: form,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<List<InterventionPhoto>> getPhotos({
+    required String interventionId,
+  }) async {
+    final token = await _tokenStorage.read();
+    if (token == null || token.isEmpty) {
+      throw StateError('Aucun jeton de session disponible.');
+    }
+    final options = Options(headers: {'Authorization': 'Bearer $token'});
+    final response = await _dio.get<Map<String, dynamic>>(
+      'interventions/$interventionId',
+      options: options,
+    );
+    final body = response.data!;
+    final data = body['data'] is Map<String, dynamic>
+        ? body['data'] as Map<String, dynamic>
+        : body;
+    final attachments = data['attachments'] as List<dynamic>? ?? const [];
+    final photos = <InterventionPhoto>[];
+    for (final item in attachments) {
+      if (item is! Map<String, dynamic> || item['type'] != 'photo') continue;
+      final id = item['id'].toString();
+      final image = await _dio.get<List<int>>(
+        'interventions/$interventionId/attachments/$id',
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          responseType: ResponseType.bytes,
+        ),
+      );
+      photos.add(InterventionPhoto(
+        id: id,
+        bytes: Uint8List.fromList(image.data!),
+        caption: item['caption'] as String?,
+      ));
+    }
+    return photos;
   }
 }

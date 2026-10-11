@@ -16,10 +16,23 @@ class InterventionAttachmentController extends Controller
         string $intervention,
     ): JsonResponse {
         $model = $request->user()->interventions()->findOrFail($intervention);
+        $clientUuid = $request->validated('client_uuid');
+        if ($clientUuid !== null) {
+            $existing = $model->attachments()
+                ->where('client_uuid', $clientUuid)
+                ->first();
+            if ($existing !== null) {
+                return (new InterventionAttachmentResource($existing))
+                    ->response()
+                    ->setStatusCode(200);
+            }
+        }
+
         $file = $request->file('file');
         $path = $file->store('interventions/'.$model->getKey(), 'local');
 
         $attachment = $model->attachments()->create([
+            'client_uuid' => $clientUuid,
             'type' => $request->validated('type'),
             'path' => $path,
             'caption' => $request->validated('caption'),

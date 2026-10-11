@@ -10,7 +10,7 @@ class AppDatabase {
     final databasesPath = await getDatabasesPath();
     return openDatabase(
       path.join(databasesPath, 'fieldtask_pro.db'),
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE interventions (
@@ -42,6 +42,7 @@ class AppDatabase {
           'ON interventions (technician_id, status)',
         );
         await _createStatusUpdatesTable(db);
+        await _createPendingAttachmentsTable(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 3) {
@@ -102,6 +103,7 @@ class AppDatabase {
             );
           }
         }
+        if (oldVersion < 6) await _createPendingAttachmentsTable(db);
       },
     );
   }
@@ -115,6 +117,18 @@ class AppDatabase {
       is_conflict INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
       includes_notes INTEGER NOT NULL DEFAULT 0,
+      queued_at TEXT NOT NULL
+    )
+  ''');
+
+  Future<void> _createPendingAttachmentsTable(DatabaseExecutor db) =>
+      db.execute('''
+    CREATE TABLE IF NOT EXISTS pending_attachments (
+      client_uuid TEXT PRIMARY KEY,
+      technician_id INTEGER NOT NULL,
+      intervention_id TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      caption TEXT,
       queued_at TEXT NOT NULL
     )
   ''');

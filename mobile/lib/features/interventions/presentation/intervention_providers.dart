@@ -9,10 +9,13 @@ import '../data/repositories/intervention_repository_impl.dart';
 import '../domain/entities/intervention.dart';
 import '../domain/entities/intervention_load_result.dart';
 import '../domain/entities/intervention_change_result.dart';
+import '../domain/entities/photo_upload_result.dart';
+import '../domain/entities/intervention_photo.dart';
 import '../domain/repositories/intervention_repository.dart';
 import '../domain/usecases/get_assigned_interventions.dart';
 import '../domain/usecases/update_intervention_notes.dart';
 import '../domain/usecases/update_intervention_status.dart';
+import '../domain/usecases/upload_intervention_photo.dart';
 
 final connectivityStatusProvider =
     StreamProvider<List<ConnectivityResult>>((ref) async* {
@@ -40,6 +43,10 @@ final updateInterventionStatusProvider = Provider<UpdateInterventionStatus>(
 
 final updateInterventionNotesProvider = Provider<UpdateInterventionNotes>(
   (ref) => UpdateInterventionNotes(ref.watch(interventionRepositoryProvider)),
+);
+
+final uploadInterventionPhotoProvider = Provider<UploadInterventionPhoto>(
+  (ref) => UploadInterventionPhoto(ref.watch(interventionRepositoryProvider)),
 );
 
 final interventionsControllerProvider =
@@ -93,6 +100,24 @@ class InterventionsController extends AsyncNotifier<InterventionLoadResult> {
     _replaceInState(result.intervention, isFromCache: result.isQueued);
     return result;
   }
+
+  Future<PhotoUploadResult> uploadPhoto({
+    required String interventionId,
+    required String filePath,
+    String? caption,
+  }) =>
+      ref.read(uploadInterventionPhotoProvider).call(
+            technicianId: _technicianId,
+            interventionId: interventionId,
+            filePath: filePath,
+            caption: caption,
+          );
+
+  Future<List<InterventionPhoto>> getPhotos(String interventionId) =>
+      ref.read(interventionRepositoryProvider).getPhotos(
+            technicianId: _technicianId,
+            interventionId: interventionId,
+          );
 
   void _replaceInState(Intervention updated, {required bool isFromCache}) {
     final current = state.asData?.value;

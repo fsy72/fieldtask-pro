@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as path;
 import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/database/app_database.dart';
@@ -190,6 +193,74 @@ class InterventionLocalDataSource {
       where: 'intervention_id = ? AND technician_id = ?',
       whereArgs: [interventionId, technicianId],
     );
+  }
+
+  Future<String> queuePhoto({
+    required int technicianId,
+    required String interventionId,
+    required String clientUuid,
+    required String sourcePath,
+    String? caption,
+  }) async {
+    final databasesPath = await getDatabasesPath();
+    final queueDirectory = Directory(path.join(databasesPath, 'pending_photos'));
+    await queueDirectory.create(recursive: true);
+    final extension = path.extension(sourcePath).isEmpty
+        ? '.jpg'
+        : path.extension(sourcePath).toLowerCase();
+    final savedPath = path.join(queueDirectory.path, '$clientUuid$extension');
+    await File(sourcePath).copy(savedPath);
+    try {
+      final db = await _appDatabase.database;
+      await db.insert('pending_attachments', {
+        'client_uuid': clientUuid,
+        'technician_id': technicianId,
+        'intervention_id': interventionId,
+        'file_path': savedPath,
+        'caption': caption,
+        'queued_at': DateTime.now().toIso8601String(),
+      });
+      return savedPath;
+    } catch (_) {
+      try {
+        await File(savedPath).delete();
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, Object?>>> pendingPhotos(int technicianId) async {
+    final db = await _appDatabase.database;
+    return db.query(
+      'pending_attachments',
+      where: 'technician_id = ?',
+      whereArgs: [technicianId],
+      orderBy: 'queued_at ASC',
+    );
+  }
+
+  Future<void> removePendingPhoto(String clientUuid) async {
+    final db = await _appDatabase.database;
+    final rows = await db.query(
+      'pending_attachments',
+      columns: ['file_path'],
+      where: 'client_uuid = ?',
+      whereArgs: [clientUuid],
+      limit: 1,
+    );
+    await db.delete(
+      'pending_attachments',
+      where: 'client_uuid = ?',
+      whereArgs: [clientUuid],
+    );
+    if (rows.isNotEmpty) {
+      final file = File(rows.first['file_path']! as String);
+      if (await file.exists()) {
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
+    }
   }
 
   Future<({List<InterventionModel> interventions, DateTime? updatedAt})>

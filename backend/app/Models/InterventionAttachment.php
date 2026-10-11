@@ -11,6 +11,7 @@ class InterventionAttachment extends Model
     use HasUuids;
 
     protected $fillable = [
+        'client_uuid',
         'type',
         'path',
         'caption',

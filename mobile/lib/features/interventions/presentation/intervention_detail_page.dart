@@ -1,8 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../domain/entities/intervention.dart';
+import '../domain/entities/intervention_photo.dart';
 import 'intervention_providers.dart';
 
 class InterventionDetailPage extends ConsumerStatefulWidget {
@@ -22,11 +24,29 @@ class _InterventionDetailPageState
     extends ConsumerState<InterventionDetailPage> {
   late Intervention _intervention;
   bool _savingChanges = false;
+  bool _uploadingPhoto = false;
+  final _imagePicker = ImagePicker();
+  List<InterventionPhoto> _photos = [];
+  bool _loadingPhotos = true;
 
   @override
   void initState() {
     super.initState();
     _intervention = widget.intervention;
+    _loadPhotos();
+  }
+
+  Future<void> _loadPhotos() async {
+    try {
+      final photos = await ref
+          .read(interventionsControllerProvider.notifier)
+          .getPhotos(_intervention.id);
+      if (mounted) setState(() => _photos = photos);
+    } catch (_) {
+      // Le contenu principal de la fiche reste disponible si le chargement échoue.
+    } finally {
+      if (mounted) setState(() => _loadingPhotos = false);
+    }
   }
 
   Future<void> _advanceStatus() async {
@@ -120,6 +140,81 @@ class _InterventionDetailPageState
     }
   }
 
+  Future<void> _addPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Prendre une photo'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choisir dans la galerie'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    try {
+      final file = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (file == null || !mounted) return;
+      setState(() => _uploadingPhoto = true);
+      final bytes = await file.readAsBytes();
+      final result = await ref
+          .read(interventionsControllerProvider.notifier)
+          .uploadPhoto(
+            interventionId: _intervention.id,
+            filePath: file.path,
+          );
+      if (!mounted) return;
+      setState(() => _photos.add(InterventionPhoto(
+            id: file.name,
+            bytes: bytes,
+          )));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.isQueued
+                ? 'Photo enregistrée hors ligne. Elle sera envoyée au retour du réseau.'
+                : 'Photo envoyée au serveur.',
+          ),
+        ),
+      );
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final status = error.response?.statusCode;
+      final payload = error.response?.data;
+      final serverMessage = payload is Map<String, dynamic>
+          ? payload['message']?.toString()
+          : null;
+      final message = status == 413 || status == 422
+          ? serverMessage ?? 'La photo est trop volumineuse ou son format est invalide.'
+          : serverMessage ?? 'Envoi impossible. Vérifiez la connexion et réessayez.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Impossible de prendre ou lire la photo : $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = _statusInfo(_intervention.status);
@@ -207,6 +302,59 @@ class _InterventionDetailPageState
             title: 'Description',
             text: _intervention.description,
             icon: Icons.subject_outlined,
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Photos de l’intervention',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          )),
+                  const SizedBox(height: 12),
+                  if (_loadingPhotos)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: LinearProgressIndicator(),
+                    ),
+                  if (_photos.isNotEmpty) ...[
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final photo in _photos)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.memory(
+                              photo.bytes,
+                              width: 88,
+                              height: 88,
+                              fit: BoxFit.cover,
+                              semanticLabel: photo.caption ?? 'Photo intervention',
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  OutlinedButton.icon(
+                    onPressed: _uploadingPhoto ? null : _addPhoto,
+                    icon: _uploadingPhoto
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_a_photo_outlined),
+                    label: Text(
+                      _uploadingPhoto ? 'Envoi en cours…' : 'Ajouter une photo',
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           Card(

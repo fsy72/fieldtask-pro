@@ -22,6 +22,7 @@ class StoreInterventionAttachmentRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'client_uuid' => ['nullable', 'uuid'],
             'type' => ['required', 'in:photo,signature'],
             'file' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'caption' => ['nullable', 'string', 'max:255'],

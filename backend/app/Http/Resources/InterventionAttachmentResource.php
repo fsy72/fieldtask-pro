@@ -16,6 +16,7 @@ class InterventionAttachmentResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'client_uuid' => $this->client_uuid,
             'type' => $this->type,
             'caption' => $this->caption,
             'mime_type' => $this->mime_type,
