@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/core_providers.dart';
+import '../../../core/notifications/local_reminder_service.dart';
+import '../../auth/presentation/auth_providers.dart';
 import '../domain/entities/intervention.dart';
 import '../domain/entities/intervention_load_result.dart';
 import 'intervention_detail_page.dart';
@@ -23,11 +25,22 @@ class _InterventionsPageState extends ConsumerState<InterventionsPage> {
   final _searchController = TextEditingController();
   String? _statusFilter;
   bool _highestPriorityFirst = true;
+  bool _remindersEnabled = false;
+  bool _reminderActionInProgress = false;
+  int? _reminderTechnicianId;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadReminderPreference());
+    });
   }
 
   @override
@@ -50,6 +63,13 @@ class _InterventionsPageState extends ConsumerState<InterventionsPage> {
           false;
       if (isNowOnline && (previous == null || !wasOnline)) {
         unawaited(_synchronizePendingChanges());
+      }
+    });
+
+    ref.listen(interventionsControllerProvider, (previous, next) {
+      final result = next.asData?.value;
+      if (_remindersEnabled && result != null) {
+        unawaited(_scheduleReminders(result, showFeedback: false));
       }
     });
 
@@ -113,6 +133,23 @@ class _InterventionsPageState extends ConsumerState<InterventionsPage> {
                         ? Icons.south
                         : Icons.north),
                   ),
+                  const SizedBox(width: 4),
+                  IconButton.filledTonal(
+                    tooltip: _remindersEnabled
+                        ? 'Désactiver les rappels'
+                        : 'Activer les rappels',
+                    onPressed: _reminderActionInProgress
+                        ? null
+                        : _toggleReminders,
+                    icon: _reminderActionInProgress
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(_remindersEnabled
+                            ? Icons.notifications_active_outlined
+                            : Icons.notifications_none_outlined),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -171,6 +208,107 @@ class _InterventionsPageState extends ConsumerState<InterventionsPage> {
       }
     }
   }
+
+  Future<void> _loadReminderPreference() async {
+    final user = ref.read(authControllerProvider).value;
+    if (user == null) return;
+    _reminderTechnicianId = user.id;
+    final enabled = await ref
+            .read(appDatabaseProvider)
+            .getMeta(_reminderPreferenceKey(user.id)) ==
+        'true';
+    if (!mounted) return;
+    setState(() => _remindersEnabled = enabled);
+    final result = ref.read(interventionsControllerProvider).asData?.value;
+    if (enabled && result != null) {
+      unawaited(_scheduleReminders(result, showFeedback: false));
+    }
+  }
+
+  Future<void> _toggleReminders() async {
+    final technicianId = _reminderTechnicianId ??
+        ref.read(authControllerProvider).value?.id;
+    if (technicianId == null) return;
+    setState(() => _reminderActionInProgress = true);
+    try {
+      final database = ref.read(appDatabaseProvider);
+      if (_remindersEnabled) {
+        await LocalReminderService.instance.cancelAll();
+        await database.setMeta(_reminderPreferenceKey(technicianId), 'false');
+        if (mounted) {
+          setState(() => _remindersEnabled = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rappels désactivés.')),
+          );
+        }
+        return;
+      }
+
+      final permissionGranted =
+          await LocalReminderService.instance.requestPermission();
+      if (!permissionGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Autorisez les notifications dans les réglages pour activer les rappels.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      await database.setMeta(_reminderPreferenceKey(technicianId), 'true');
+      if (!mounted) return;
+      setState(() {
+        _remindersEnabled = true;
+        _reminderTechnicianId = technicianId;
+      });
+      final result = ref.read(interventionsControllerProvider).asData?.value;
+      if (result != null) await _scheduleReminders(result, showFeedback: true);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossible de configurer les rappels : $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _reminderActionInProgress = false);
+    }
+  }
+
+  Future<void> _scheduleReminders(
+    InterventionLoadResult result, {
+    required bool showFeedback,
+  }) async {
+    try {
+      final count = await LocalReminderService.instance
+          .scheduleFor(result.interventions);
+      if (mounted && _remindersEnabled && showFeedback) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              count == 0
+                  ? 'Aucun rappel à venir : vérifiez les dates planifiées.'
+                  : '$count rappel(s) programmé(s), une heure avant l’intervention.',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Planification des rappels impossible : $error')),
+        );
+      }
+    }
+  }
+
+  String _reminderPreferenceKey(int technicianId) =>
+      'intervention_reminders_enabled_$technicianId';
 
   Widget _filterChip(String label, String? status) => Padding(
         padding: const EdgeInsets.only(right: 8),

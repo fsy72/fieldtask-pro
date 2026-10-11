@@ -21,7 +21,7 @@ class LocalReminderService {
   Future<void> _initializePlugin() async {
     tz_data.initializeTimeZones();
     final timezone = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(timezone.name));
+    tz.setLocalLocation(tz.getLocation(timezone.identifier));
 
     await _plugin.initialize(
       settings: const InitializationSettings(
