@@ -36,14 +36,14 @@ class AuthController extends AsyncNotifier<AppUser?> {
   Future<AppUser?> build() => ref.read(restoreSessionUseCaseProvider).call();
 
   Future<void> login({required String email, required String password}) async {
-    state = const AsyncLoading();
+    state = const AsyncLoading<AppUser?>().copyWithPrevious(state);
     state = await AsyncValue.guard(
       () => ref.read(loginUseCaseProvider).call(email: email, password: password),
     );
   }
 
   Future<void> logout() async {
-    state = const AsyncLoading();
+    state = const AsyncLoading<AppUser?>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
       await ref.read(logoutUseCaseProvider).call();
       return null;

@@ -34,14 +34,16 @@ flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8000/api/
 
 Ne mettez pas de secret ni de jeton dans `API_BASE_URL`. Pour une mise en production, utilisez une URL HTTPS.
 
-## Compte local de démonstration
+## Comptes locaux de démonstration
 
 Après avoir initialisé le backend avec `php artisan migrate --seed` :
 
-- E-mail : `test@example.com`
-- Mot de passe : `password`
+- Fieldtask Pro : `fieldtask.pro@gmail.com` / `password_pro@123`
+- Fallou SY : `fallou.sy@gmail.com` / `technicien123`
+- Khadidiatou NDIAYE : `khadidiatou.ndiaye@gmail.com` / `technicien123`
+- Cheikh Tidiane : `cheikh.tidiane@gmail.com` / `technicien123`
 
-La connexion utilise `POST /api/auth/login`. Le jeton Sanctum et le profil technicien sont conservés dans le stockage sécurisé du système. Au redémarrage, le profil est validé par `GET /api/auth/me`; si l'API est indisponible, le profil sauvegardé permet d'ouvrir la liste locale. La déconnexion tente de révoquer le jeton auprès du backend, puis supprime le jeton et le profil du stockage sécurisé.
+L'écran permet de se connecter avec `POST /api/auth/login`. Les comptes sont fournis par le gestionnaire et les données de démonstration sont créées avec les seeders Laravel. Le jeton Sanctum et le profil technicien sont conservés dans le stockage sécurisé du système. Au redémarrage, le profil est validé par `GET /api/auth/me`; si l'API est indisponible, le profil sauvegardé permet d'ouvrir la liste locale. La déconnexion tente de révoquer le jeton auprès du backend, puis supprime le jeton et le profil du stockage sécurisé.
 
 ## Organisation du code
 
@@ -52,4 +54,4 @@ Le code mobile suit une séparation en couches, avec Riverpod pour l'état appli
 - `lib/features/<fonction>/presentation/` : écrans et contrôleurs Riverpod
 - `lib/core/` : réseau et stockage partagé
 
-La connexion au backend et la restauration de session sont en place. La liste des interventions est chargée depuis l'API, puis mise en cache dans SQLite par technicien. En cas de coupure, la dernière liste locale reste affichée; le chargement est relancé quand le réseau revient. La file d'attente des modifications hors ligne, la fiche détaillée, la carte, les pièces jointes, la signature et les rappels restent à développer.
+La connexion au backend est en place. La liste des interventions est chargée depuis l'API, puis mise en cache dans SQLite par technicien. L'application permet de filtrer, rechercher et trier les interventions, de modifier leur statut et leurs notes hors ligne, puis de synchroniser les changements. La fiche détaillée comprend la carte OpenStreetMap, la position du technicien, les photos et la signature du client. Les rappels locaux peuvent être activés depuis l'écran des interventions.

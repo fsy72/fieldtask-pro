@@ -16,13 +16,42 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $technicians = [
+            [
+                'name' => 'Fieldtask Pro',
+                'email' => 'fieldtask.pro@gmail.com',
+                'password' => 'password_pro123',
+            ],
+            [
+                'name' => 'Fallou SY',
+                'email' => 'fallou.sy@gmail.com',
+                'password' => 'technicien123',
+            ],
+            [
+                'name' => 'Khadidiatou NDIAYE',
+                'email' => 'khadidiatou.ndiaye@gmail.com',
+                'password' => 'technicien123',
+            ],
+            [
+                'name' => 'Cheikh Tidiane',
+                'email' => 'cheikh.tidiane@gmail.com',
+                'password' => 'technicien123',
+            ],
+        ];
 
-        User::factory()->create([
-            'name' => 'Fieldtask Pro',
-            'email' => 'fieldtask.pro@example.com',
-            'password' => Hash::make('password_pro@123'),
-        ]);
+        User::query()
+            ->whereIn('email', ['awa.fall@gmail.com', 'mamadou.diop@gmail.com'])
+            ->delete();
+
+        foreach ($technicians as $technician) {
+            User::query()->updateOrCreate(
+                ['email' => $technician['email']],
+                [
+                    'name' => $technician['name'],
+                    'password' => Hash::make($technician['password']),
+                ],
+            );
+        }
 
         $this->call(InterventionSeeder::class);
     }

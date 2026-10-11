@@ -21,7 +21,18 @@ class AuthController extends Controller
             ], 401);
         }
 
-        $token = $user->createToken($credentials['device_name'] ?? 'fieldtask-mobile');
+        return $this->tokenResponse(
+            $user,
+            $credentials['device_name'] ?? 'fieldtask-mobile',
+        );
+    }
+
+    private function tokenResponse(
+        User $user,
+        string $deviceName,
+        int $status = 200,
+    ): JsonResponse {
+        $token = $user->createToken($deviceName);
 
         return response()->json([
             'token_type' => 'Bearer',
@@ -31,7 +42,7 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
             ],
-        ]);
+        ], $status);
     }
 
     public function logout(Request $request): JsonResponse

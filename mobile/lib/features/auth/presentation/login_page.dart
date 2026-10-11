@@ -39,7 +39,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final auth = ref.watch(authControllerProvider);
     final isLoading = auth.isLoading;
     final error = auth.hasError
-        ? _messageFor(auth.error, ref.read(apiClientProvider).baseUrl)
+        ? _messageFor(
+            auth.error,
+            ref.read(apiClientProvider).baseUrl,
+          )
         : null;
 
     return Scaffold(
@@ -92,7 +95,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                       validator: (value) {
                         final email = value?.trim() ?? '';
-                        if (email.isEmpty) return 'Saisissez votre adresse e-mail.';
+                        if (email.isEmpty) {
+                          return 'Saisissez votre adresse e-mail.';
+                        }
                         if (!email.contains('@')) return 'Adresse e-mail invalide.';
                         return null;
                       },
@@ -181,7 +186,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
     }
     if (error is FormatException || error is TypeError) {
-      return 'La réponse du serveur ne respecte pas le format attendu. Vérifiez la réponse de POST /api/auth/login.';
+      return 'La réponse du serveur ne respecte pas le format attendu. Vérifiez POST /api/auth/login.';
     }
     return kDebugMode
         ? 'Erreur inattendue (${error?.runtimeType ?? 'inconnue'}). Consultez la console Flutter.'

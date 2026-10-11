@@ -9,7 +9,6 @@ Route::name('api.')->group(function (): void {
     Route::post('/auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:5,1')
         ->name('auth.login');
-
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/auth/me', [AuthController::class, 'me'])
             ->name('auth.me');

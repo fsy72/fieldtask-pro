@@ -64,12 +64,14 @@ Ne partagez pas `.env` et ne commitez jamais ses secrets. Chaque membre configur
 
 ## Données de démonstration
 
-`php artisan migrate --seed` crée un compte de test et deux interventions :
+`php artisan migrate --seed` crée quatre comptes de démonstration et quinze interventions :
 
-- E-mail : `test@example.com`
-- Mot de passe : `password`
+- Fieldtask Pro — `fieldtask.pro@gmail.com` / `password_pro@123` — 5 interventions
+- Fallou SY — `fallou.sy@gmail.com` / `technicien123` — 3 interventions
+- Khadidiatou NDIAYE — `khadidiatou.ndiaye@gmail.com` / `technicien123` — 4 interventions
+- Cheikh Tidiane — `cheikh.tidiane@gmail.com` / `technicien123` — 3 interventions
 
-Ce compte est réservé au développement local. Ne réutilisez pas ces identifiants en production.
+Ces comptes sont réservés au développement local. Ne réutilisez pas ces identifiants en production. Pour insérer ou actualiser les comptes et les interventions dans une base existante, exécutez `php artisan db:seed` depuis `backend/`.
 
 ## Authentification
 
@@ -104,7 +106,7 @@ Les routes sont préfixées par `/api`. Le segment `v1` a été retiré.
 
 ```json
 {
-  "email": "test@example.com",
+  "email": "test@gmail.com",
   "password": "password",
   "device_name": "Thunder Client"
 }
