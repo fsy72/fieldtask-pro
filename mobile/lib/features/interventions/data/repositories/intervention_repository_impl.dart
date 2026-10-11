@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -151,7 +152,9 @@ class InterventionRepositoryImpl implements InterventionRepository {
   Future<PhotoUploadResult> uploadPhoto({
     required int technicianId,
     required String interventionId,
-    required String filePath,
+    String? filePath,
+    Uint8List? bytes,
+    String type = 'photo',
     String? caption,
   }) async {
     final clientUuid = _newUuid();
@@ -160,6 +163,8 @@ class InterventionRepositoryImpl implements InterventionRepository {
       interventionId: interventionId,
       clientUuid: clientUuid,
       sourcePath: filePath,
+      sourceBytes: bytes,
+      type: type,
       caption: caption,
     );
     try {
@@ -167,6 +172,7 @@ class InterventionRepositoryImpl implements InterventionRepository {
         interventionId: interventionId,
         clientUuid: clientUuid,
         filePath: savedPath,
+        type: type,
         caption: caption,
       );
       await _local.removePendingPhoto(clientUuid);
@@ -204,6 +210,7 @@ class InterventionRepositoryImpl implements InterventionRepository {
         photos.add(InterventionPhoto(
           id: item['client_uuid']! as String,
           bytes: bytes,
+          type: item['type'] as String? ?? 'photo',
           caption: item['caption'] as String?,
         ));
       } on FileSystemException {
@@ -216,7 +223,6 @@ class InterventionRepositoryImpl implements InterventionRepository {
   @override
   Future<int> syncPendingChanges({required int technicianId}) async {
     final pending = await _local.pendingChanges(technicianId);
-    if (pending.isEmpty) return 0;
     final cached = await _local.readForTechnician(technicianId);
     final interventions = {
       for (final intervention in cached.interventions) intervention.id: intervention,
@@ -281,6 +287,7 @@ class InterventionRepositoryImpl implements InterventionRepository {
           interventionId: photo['intervention_id']! as String,
           clientUuid: clientUuid,
           filePath: photo['file_path']! as String,
+          type: photo['type'] as String? ?? 'photo',
           caption: photo['caption'] as String?,
         );
         await _local.removePendingPhoto(clientUuid);

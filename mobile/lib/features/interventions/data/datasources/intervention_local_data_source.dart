@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as path;
 import 'package:sqflite/sqflite.dart';
@@ -199,17 +200,27 @@ class InterventionLocalDataSource {
     required int technicianId,
     required String interventionId,
     required String clientUuid,
-    required String sourcePath,
+    String? sourcePath,
+    Uint8List? sourceBytes,
+    String type = 'photo',
     String? caption,
   }) async {
     final databasesPath = await getDatabasesPath();
     final queueDirectory = Directory(path.join(databasesPath, 'pending_photos'));
     await queueDirectory.create(recursive: true);
-    final extension = path.extension(sourcePath).isEmpty
-        ? '.jpg'
+    final extension = sourceBytes != null && type == 'signature'
+        ? '.png'
+        : sourcePath == null || path.extension(sourcePath).isEmpty
+            ? '.jpg'
         : path.extension(sourcePath).toLowerCase();
     final savedPath = path.join(queueDirectory.path, '$clientUuid$extension');
-    await File(sourcePath).copy(savedPath);
+    if (sourceBytes != null) {
+      await File(savedPath).writeAsBytes(sourceBytes, flush: true);
+    } else if (sourcePath != null) {
+      await File(sourcePath).copy(savedPath);
+    } else {
+      throw ArgumentError('Un chemin ou des données de fichier sont requis.');
+    }
     try {
       final db = await _appDatabase.database;
       await db.insert('pending_attachments', {
@@ -217,6 +228,7 @@ class InterventionLocalDataSource {
         'technician_id': technicianId,
         'intervention_id': interventionId,
         'file_path': savedPath,
+        'type': type,
         'caption': caption,
         'queued_at': DateTime.now().toIso8601String(),
       });

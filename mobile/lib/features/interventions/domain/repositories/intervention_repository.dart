@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../entities/intervention_load_result.dart';
 import '../entities/intervention.dart';
 import '../entities/intervention_change_result.dart';
@@ -22,7 +24,9 @@ abstract interface class InterventionRepository {
   Future<PhotoUploadResult> uploadPhoto({
     required int technicianId,
     required String interventionId,
-    required String filePath,
+    String? filePath,
+    Uint8List? bytes,
+    String type = 'photo',
     String? caption,
   });
 
@@ -33,3 +37,4 @@ abstract interface class InterventionRepository {
 
   Future<int> syncPendingChanges({required int technicianId});
 }
+

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -103,13 +105,17 @@ class InterventionsController extends AsyncNotifier<InterventionLoadResult> {
 
   Future<PhotoUploadResult> uploadPhoto({
     required String interventionId,
-    required String filePath,
+    String? filePath,
+    Uint8List? bytes,
+    String type = 'photo',
     String? caption,
   }) =>
       ref.read(uploadInterventionPhotoProvider).call(
             technicianId: _technicianId,
             interventionId: interventionId,
             filePath: filePath,
+            bytes: bytes,
+            type: type,
             caption: caption,
           );
 
@@ -142,3 +148,4 @@ class InterventionsController extends AsyncNotifier<InterventionLoadResult> {
     return conflicts;
   }
 }
+

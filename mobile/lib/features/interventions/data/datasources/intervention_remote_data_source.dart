@@ -81,6 +81,7 @@ class InterventionRemoteDataSource {
     required String interventionId,
     required String clientUuid,
     required String filePath,
+    String type = 'photo',
     String? caption,
   }) async {
     final token = await _tokenStorage.read();
@@ -90,7 +91,7 @@ class InterventionRemoteDataSource {
 
     final form = FormData.fromMap({
       'client_uuid': clientUuid,
-      'type': 'photo',
+      'type': type,
       'file': await MultipartFile.fromFile(
         filePath,
         filename: path.basename(filePath),
@@ -124,7 +125,10 @@ class InterventionRemoteDataSource {
     final attachments = data['attachments'] as List<dynamic>? ?? const [];
     final photos = <InterventionPhoto>[];
     for (final item in attachments) {
-      if (item is! Map<String, dynamic> || item['type'] != 'photo') continue;
+      if (item is! Map<String, dynamic> ||
+          !const {'photo', 'signature'}.contains(item['type'])) {
+        continue;
+      }
       final id = item['id'].toString();
       final image = await _dio.get<List<int>>(
         'interventions/$interventionId/attachments/$id',
@@ -136,6 +140,7 @@ class InterventionRemoteDataSource {
       photos.add(InterventionPhoto(
         id: id,
         bytes: Uint8List.fromList(image.data!),
+        type: item['type'] as String? ?? 'photo',
         caption: item['caption'] as String?,
       ));
     }

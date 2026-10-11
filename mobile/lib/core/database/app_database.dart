@@ -10,7 +10,7 @@ class AppDatabase {
     final databasesPath = await getDatabasesPath();
     return openDatabase(
       path.join(databasesPath, 'fieldtask_pro.db'),
-      version: 6,
+      version: 7,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE interventions (
@@ -104,6 +104,11 @@ class AppDatabase {
           }
         }
         if (oldVersion < 6) await _createPendingAttachmentsTable(db);
+        if (oldVersion >= 6 && oldVersion < 7) {
+          await db.execute(
+            "ALTER TABLE pending_attachments ADD COLUMN type TEXT NOT NULL DEFAULT 'photo'",
+          );
+        }
       },
     );
   }
@@ -128,6 +133,7 @@ class AppDatabase {
       technician_id INTEGER NOT NULL,
       intervention_id TEXT NOT NULL,
       file_path TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'photo',
       caption TEXT,
       queued_at TEXT NOT NULL
     )

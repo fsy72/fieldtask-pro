@@ -1,5 +1,9 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -215,6 +219,57 @@ class _InterventionDetailPageState
     }
   }
 
+  Future<void> _addSignature() async {
+    final bytes = await showDialog<Uint8List>(
+      context: context,
+      builder: (_) => const _SignatureDialog(),
+    );
+    if (bytes == null || !mounted) return;
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      final result = await ref
+          .read(interventionsControllerProvider.notifier)
+          .uploadPhoto(
+            interventionId: _intervention.id,
+            bytes: bytes,
+            type: 'signature',
+          );
+      if (!mounted) return;
+      setState(() {
+        _photos.removeWhere((photo) => photo.type == 'signature');
+        _photos.add(InterventionPhoto(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          bytes: bytes,
+          type: 'signature',
+        ));
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.isQueued
+              ? 'Signature enregistrée hors ligne. Elle sera envoyée au retour du réseau.'
+              : 'Signature envoyée au serveur.'),
+        ),
+      );
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final payload = error.response?.data;
+      final message = payload is Map<String, dynamic>
+          ? payload['message']?.toString()
+          : null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message ?? 'Impossible d’enregistrer la signature.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = _statusInfo(_intervention.status);
@@ -223,6 +278,9 @@ class _InterventionDetailPageState
       'in_progress' => ('completed', 'Terminer l’intervention', Icons.check),
       _ => null,
     };
+    final photos = _photos.where((photo) => photo.type == 'photo');
+    final signatures = _photos.where((photo) => photo.type == 'signature');
+    final signature = signatures.isEmpty ? null : signatures.last;
     return Scaffold(
       appBar: AppBar(title: const Text('Détail de l’intervention')),
       body: ListView(
@@ -320,12 +378,12 @@ class _InterventionDetailPageState
                       padding: EdgeInsets.symmetric(vertical: 8),
                       child: LinearProgressIndicator(),
                     ),
-                  if (_photos.isNotEmpty) ...[
+                  if (photos.isNotEmpty) ...[
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        for (final photo in _photos)
+                        for (final photo in photos)
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.memory(
@@ -352,6 +410,50 @@ class _InterventionDetailPageState
                       _uploadingPhoto ? 'Envoi en cours…' : 'Ajouter une photo',
                     ),
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Signature du client',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          )),
+                  const SizedBox(height: 12),
+                  if (signature != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(
+                        signature.bytes,
+                        height: 130,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        semanticLabel: 'Signature du client',
+                      ),
+                    )
+                  else
+                    const Text('Aucune signature enregistrée.'),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _uploadingPhoto || _intervention.status != 'completed'
+                        ? null
+                        : _addSignature,
+                    icon: const Icon(Icons.draw_outlined),
+                    label: Text(signature == null
+                        ? 'Recueillir la signature'
+                        : 'Remplacer la signature'),
+                  ),
+                  if (_intervention.status != 'completed')
+                    Text(
+                      'Terminez l’intervention pour recueillir la signature.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                 ],
               ),
             ),
@@ -398,6 +500,99 @@ class _InterventionDetailPageState
       ),
     );
   }
+}
+
+class _SignatureDialog extends StatefulWidget {
+  const _SignatureDialog();
+
+  @override
+  State<_SignatureDialog> createState() => _SignatureDialogState();
+}
+
+class _SignatureDialogState extends State<_SignatureDialog> {
+  final _boundaryKey = GlobalKey();
+  final List<Offset?> _points = [];
+
+  Future<void> _save() async {
+    if (!_points.any((point) => point != null)) return;
+    final boundary = _boundaryKey.currentContext!.findRenderObject()!
+        as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: 3);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (data != null && mounted) {
+      Navigator.of(context).pop(data.buffer.asUint8List());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Signature du client'),
+        content: SizedBox(
+          width: MediaQuery.sizeOf(context).width * 0.72,
+          height: 220,
+          child: RepaintBoundary(
+            key: _boundaryKey,
+            child: ColoredBox(
+              color: Colors.white,
+              child: GestureDetector(
+                onPanStart: (details) =>
+                    setState(() => _points.add(details.localPosition)),
+                onPanUpdate: (details) =>
+                    setState(() => _points.add(details.localPosition)),
+                onPanEnd: (_) => setState(() => _points.add(null)),
+                child: CustomPaint(
+                  painter: _SignaturePainter(_points),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => setState(_points.clear),
+            child: const Text('Effacer'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: _points.any((point) => point != null) ? _save : null,
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      );
+}
+
+class _SignaturePainter extends CustomPainter {
+  const _SignaturePainter(this.points);
+
+  final List<Offset?> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    for (var index = 0; index < points.length - 1; index++) {
+      final start = points[index];
+      final end = points[index + 1];
+      if (start != null && end != null) {
+        canvas.drawLine(start, end, paint);
+      } else if (start != null) {
+        canvas.drawCircle(start, paint.strokeWidth / 2, paint);
+      }
+    }
+    if (points.length == 1 && points.first != null) {
+      canvas.drawCircle(points.first!, paint.strokeWidth / 2, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;
 }
 
 class _NotesEditorDialog extends StatefulWidget {
@@ -564,3 +759,4 @@ String _formatDate(DateTime date) {
   final minute = local.minute.toString().padLeft(2, '0');
   return '$day/$month/$year à $hour:$minute';
 }
+
